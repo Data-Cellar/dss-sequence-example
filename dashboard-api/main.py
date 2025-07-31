@@ -1,11 +1,11 @@
 import asyncio
 import logging
-import os
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-import requests
+import httpx
 import uvicorn
+from edcpy.edc_api import ConnectorController
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -29,6 +29,10 @@ DSS_API_URL = "http://dss_mock_api:8000"
 DASHBOARD_API_KEY = "dashboard-api-key"
 DSS_API_KEY = "dss-api-key"
 
+# EDC Configuration
+DSS_CONNECTOR_PROTOCOL_URL = "http://dss_connector:19194"
+DSS_CONNECTOR_ID = "dss-connector"
+
 
 class F1ToolRequest(BaseModel):
     building_id: str = "building_001"
@@ -48,131 +52,140 @@ class F1ToolResponse(BaseModel):
 requests_storage: Dict[str, Dict[str, Any]] = {}
 
 
-async def negotiate_contract(asset_id: str, provider_url: str) -> str:
-    """Negotiate contract with DSS connector for F1 service access"""
+class SSEPullCredentialsReceiver:
+    """Handles SSE-based access token reception from consumer backend"""
 
-    try:
-        # Contract negotiation request
-        contract_request = {
-            "@context": {"@vocab": "https://w3id.org/edc/v0.0.1/ns/"},
-            "@type": "ContractRequest",
-            "counterPartyAddress": provider_url,
-            "protocol": "dataspace-protocol-http",
-            "policy": {
-                "@type": "Policy",
-                "permission": [{"action": "use", "target": asset_id}],
-            },
+    def __init__(self, consumer_backend_url: str, api_key: str):
+        self.consumer_backend_url = consumer_backend_url
+        self.api_key = api_key
+        self.credentials = {}
+        self._listening = False
+        self._client = None
+
+    async def start_listening(self, provider_host: str):
+        """Start listening for SSE messages from consumer backend"""
+        sse_url = f"{self.consumer_backend_url}/pull/stream/provider/{provider_host}"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Accept": "text/event-stream",
         }
 
-        headers = {"x-api-key": DASHBOARD_API_KEY, "Content-Type": "application/json"}
+        self._client = httpx.AsyncClient()
+        self._listening = True
 
-        response = requests.post(
-            f"{DASHBOARD_CONNECTOR_URL}/management/contractnegotiations",
-            json=contract_request,
-            headers=headers,
-            timeout=30,
-        )
+        try:
+            async with self._client.stream("GET", sse_url, headers=headers) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not self._listening:
+                        break
+                    await self._process_sse_line(line)
+        except Exception as e:
+            logger.error(f"SSE connection failed: {e}")
+            raise
 
-        response.raise_for_status()
+    async def _process_sse_line(self, line: str):
+        """Process individual SSE message lines"""
+        if line.startswith("data: "):
+            try:
+                import json
 
-        negotiation_id = response.json()["@id"]
-        logger.info(f"Started contract negotiation: {negotiation_id}")
+                data = json.loads(line[6:])  # Remove 'data: ' prefix
+                transfer_id = data.get("transfer_process_id")
+                if transfer_id:
+                    self.credentials[transfer_id] = data
+                    logger.info(f"Received credentials for transfer {transfer_id}")
+            except json.JSONDecodeError:
+                pass
 
-        # Poll for contract agreement (simplified for demo)
-        for _ in range(10):  # Wait up to 50 seconds
-            await asyncio.sleep(5)
+    async def get_credentials(
+        self, transfer_id: str, timeout: int = 60
+    ) -> Dict[str, Any]:
+        """Wait for and retrieve credentials for a specific transfer"""
+        for _ in range(timeout):
+            if transfer_id in self.credentials:
+                return self.credentials[transfer_id]
+            await asyncio.sleep(1)
+        raise TimeoutError(f"Credentials not received for transfer {transfer_id}")
 
-            status_response = requests.get(
-                f"{DASHBOARD_CONNECTOR_URL}/management/contractnegotiations/{negotiation_id}",
-                headers=headers,
-                timeout=10,
-            )
-
-            if status_response.status_code == 200:
-                negotiation = status_response.json()
-                if negotiation["state"] == "FINALIZED":
-                    agreement_id = negotiation["contractAgreementId"]
-                    logger.info(f"Contract negotiation completed: {agreement_id}")
-                    return agreement_id
-
-        raise Exception("Contract negotiation timed out")
-
-    except Exception as e:
-        logger.error(f"Contract negotiation failed: {e}")
-        raise
-
-
-async def initiate_transfer(agreement_id: str, asset_id: str, provider_url: str) -> str:
-    """Initiate transfer process for data access"""
-
-    try:
-        transfer_request = {
-            "@context": {"@vocab": "https://w3id.org/edc/v0.0.1/ns/"},
-            "@type": "TransferRequest",
-            "counterPartyAddress": provider_url,
-            "protocol": "dataspace-protocol-http",
-            "contractId": agreement_id,
-            "assetId": asset_id,
-            "dataDestination": {"type": "HttpPull"},
-        }
-
-        headers = {"x-api-key": DASHBOARD_API_KEY, "Content-Type": "application/json"}
-
-        response = requests.post(
-            f"{DASHBOARD_CONNECTOR_URL}/management/transferprocesses",
-            json=transfer_request,
-            headers=headers,
-            timeout=30,
-        )
-
-        response.raise_for_status()
-
-        transfer_id = response.json()["@id"]
-        logger.info(f"Started transfer process: {transfer_id}")
-
-        # Poll for transfer completion (simplified for demo)
-        for _ in range(10):  # Wait up to 50 seconds
-            await asyncio.sleep(5)
-
-            status_response = requests.get(
-                f"{DASHBOARD_CONNECTOR_URL}/management/transferprocesses/{transfer_id}",
-                headers=headers,
-                timeout=10,
-            )
-
-            if status_response.status_code == 200:
-                transfer = status_response.json()
-                if transfer["state"] == "STARTED":
-                    logger.info(f"Transfer process started: {transfer_id}")
-                    return transfer_id
-
-        raise Exception("Transfer process timed out")
-
-    except Exception as e:
-        logger.error(f"Transfer process failed: {e}")
-        raise
+    async def stop_listening(self):
+        """Stop listening for SSE messages"""
+        self._listening = False
+        if self._client:
+            await self._client.aclose()
 
 
-async def wait_for_access_token(transfer_id: str) -> str:
-    """Wait for access token via SSE endpoint"""
+async def run_edcpy_negotiation_and_transfer(
+    asset_id: str, f1_request: F1ToolRequest
+) -> str:
+    """Use edcpy to handle contract negotiation and transfer process"""
 
     try:
-        # In a real scenario, this would listen to the SSE endpoint
-        # For this demo, we'll simulate receiving the token
-        await asyncio.sleep(3)  # Simulate SSE wait time
+        # Initialize EDC controller
+        controller = ConnectorController(
+            management_url=DASHBOARD_CONNECTOR_URL, api_key=DASHBOARD_API_KEY
+        )
 
-        # Simulate access token (in real scenario, comes from SSE)
-        access_token = f"simulated-token-{transfer_id}"
-        logger.info(f"Received access token for transfer {transfer_id}")
-        return access_token
+        # Start SSE listener for credentials
+        sse_receiver = SSEPullCredentialsReceiver(
+            DASHBOARD_BACKEND_URL, DASHBOARD_API_KEY
+        )
+
+        # Start listening in background
+        provider_host = "dss_connector:19194"
+        listen_task = asyncio.create_task(sse_receiver.start_listening(provider_host))
+
+        try:
+            # Run negotiation flow
+            logger.info(f"Starting negotiation for asset {asset_id}")
+            transfer_details = await controller.run_negotiation_flow(
+                counter_party_protocol_url=DSS_CONNECTOR_PROTOCOL_URL,
+                counter_party_connector_id=DSS_CONNECTOR_ID,
+                asset_query=asset_id,
+            )
+
+            # Run transfer flow
+            logger.info("Starting transfer process")
+            transfer_process = await controller.run_transfer_flow(
+                transfer_details=transfer_details, is_provider_push=False
+            )
+
+            transfer_id = transfer_process.transfer_process_id
+            logger.info(f"Transfer process initiated: {transfer_id}")
+
+            # Wait for credentials via SSE
+            credentials = await sse_receiver.get_credentials(transfer_id)
+
+            # Extract access token from credentials
+            access_token = credentials.get("authKey") or credentials.get("token")
+            if not access_token:
+                raise Exception("No access token in received credentials")
+
+            logger.info(f"Received access token for transfer {transfer_id}")
+
+            # Call DSS service with the access token
+            dss_job_id = await call_dss_f1_service_with_token(access_token, f1_request)
+
+            return dss_job_id
+
+        finally:
+            # Stop SSE listener
+            await sse_receiver.stop_listening()
+            listen_task.cancel()
+            try:
+                await listen_task
+            except asyncio.CancelledError:
+                pass
 
     except Exception as e:
-        logger.error(f"Failed to get access token: {e}")
+        logger.error(f"EDC negotiation and transfer failed: {e}")
         raise
 
 
-async def call_dss_f1_service(access_token: str, f1_request: F1ToolRequest) -> str:
-    """Call the DSS F1 (Energy Optimization) service using the access token"""
+async def call_dss_f1_service_with_token(
+    access_token: str, f1_request: F1ToolRequest
+) -> str:
+    """Call DSS F1 service using the received access token"""
 
     try:
         # Prepare the F1 job request
@@ -182,14 +195,50 @@ async def call_dss_f1_service(access_token: str, f1_request: F1ToolRequest) -> s
             "parameters": {},
         }
 
-        # Call DSS connector's public API (which proxies to DSS service)
+        # Call DSS connector's public API using the access token
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
         }
 
-        # For demo purposes, call DSS API directly (in real scenario via connector)
-        dss_headers = {
+        callback_url = (
+            f"http://dashboard_api:8000/webhooks/dss-callback/{f1_request.user_id}"
+        )
+
+        # Use the DSS connector's public API endpoint
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"http://dss_connector:19291/api/f1/jobs",  # DSS Connector Public API
+                json=job_request,
+                headers=headers,
+                params={"callback_url": callback_url},
+                timeout=30,
+            )
+            response.raise_for_status()
+
+            job_data = response.json()
+            dss_job_id = job_data["job_id"]
+            logger.info(f"Created DSS F1 job via connector: {dss_job_id}")
+
+            return dss_job_id
+
+    except Exception as e:
+        logger.error(f"Failed to call DSS F1 service via connector: {e}")
+        # Fallback to direct API call for demo purposes
+        return await call_dss_f1_service_direct(f1_request)
+
+
+async def call_dss_f1_service_direct(f1_request: F1ToolRequest) -> str:
+    """Fallback: Call DSS F1 service directly (for demo purposes)"""
+
+    try:
+        job_request = {
+            "building_id": f1_request.building_id,
+            "optimization_type": f1_request.optimization_type,
+            "parameters": {},
+        }
+
+        headers = {
             "X-API-Key": "dss-backend-key",
             "Content-Type": "application/json",
         }
@@ -198,23 +247,24 @@ async def call_dss_f1_service(access_token: str, f1_request: F1ToolRequest) -> s
             f"http://dashboard_api:8000/webhooks/dss-callback/{f1_request.user_id}"
         )
 
-        response = requests.post(
-            f"{DSS_API_URL}/f1/jobs",
-            json=job_request,
-            headers=dss_headers,
-            params={"callback_url": callback_url},
-            timeout=30,
-        )
-        response.raise_for_status()
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{DSS_API_URL}/f1/jobs",
+                json=job_request,
+                headers=headers,
+                params={"callback_url": callback_url},
+                timeout=30,
+            )
+            response.raise_for_status()
 
-        job_data = response.json()
-        dss_job_id = job_data["job_id"]
-        logger.info(f"Created DSS F1 job: {dss_job_id}")
+            job_data = response.json()
+            dss_job_id = job_data["job_id"]
+            logger.info(f"Created DSS F1 job (direct): {dss_job_id}")
 
-        return dss_job_id
+            return dss_job_id
 
     except Exception as e:
-        logger.error(f"Failed to call DSS F1 service: {e}")
+        logger.error(f"Failed to call DSS F1 service directly: {e}")
         raise
 
 
@@ -257,37 +307,20 @@ async def request_f1_tool(f1_request: F1ToolRequest, background_tasks: Backgroun
 
 
 async def process_f1_request(request_id: str, f1_request: F1ToolRequest):
-    """Background task to process DSS F1 (Energy Optimization) tool request through connectors"""
+    """Background task to process DSS F1 tool request using edcpy"""
 
     try:
-        requests_storage[request_id]["status"] = "negotiating_contract"
+        requests_storage[request_id]["status"] = "processing_via_edcpy"
 
-        # Step 1: Contract Negotiation
+        # Use edcpy for complete negotiation and transfer flow
         asset_id = "dss-f1-service"  # Predefined in DSS connector
-        agreement_id = await negotiate_contract(asset_id, DSS_CONNECTOR_URL)
-
-        requests_storage[request_id]["contract_agreement_id"] = agreement_id
-        requests_storage[request_id]["status"] = "initiating_transfer"
-
-        # Step 2: Transfer Process
-        transfer_id = await initiate_transfer(agreement_id, asset_id, DSS_CONNECTOR_URL)
-
-        requests_storage[request_id]["transfer_process_id"] = transfer_id
-        requests_storage[request_id]["status"] = "waiting_access_token"
-
-        # Step 3: Wait for Access Token
-        access_token = await wait_for_access_token(transfer_id)
-
-        requests_storage[request_id]["status"] = "calling_dss_service"
-
-        # Step 4: Call DSS F1 Service
-        dss_job_id = await call_dss_f1_service(access_token, f1_request)
+        dss_job_id = await run_edcpy_negotiation_and_transfer(asset_id, f1_request)
 
         requests_storage[request_id]["dss_job_id"] = dss_job_id
         requests_storage[request_id]["status"] = "dss_job_running"
 
         logger.info(
-            f"DSS F1 request {request_id} processed successfully, DSS job: {dss_job_id}"
+            f"DSS F1 request {request_id} processed successfully via edcpy, DSS job: {dss_job_id}"
         )
 
     except Exception as e:
