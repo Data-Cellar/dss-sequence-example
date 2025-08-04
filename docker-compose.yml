@@ -1,7 +1,7 @@
 services:
   # Dashboard Connector (Consumer)
   dashboard_connector:
-    image: agmangas/edc-connector:latest
+    image: agmangas/edc-connector:main
     platform: linux/amd64
     container_name: dashboard_connector
     restart: on-failure
@@ -24,7 +24,7 @@ services:
 
   # Dashboard Consumer Backend (handles SSE and messaging)
   dashboard_backend:
-    image: agmangas/edc-connector:latest
+    image: agmangas/edc-connector:main
     platform: linux/amd64
     container_name: dashboard_backend
     restart: on-failure

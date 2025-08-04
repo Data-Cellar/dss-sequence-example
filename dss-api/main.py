@@ -67,6 +67,7 @@ class F1JobStatus(BaseModel):
 
 async def simulate_job_processing(job_id: str, callback_url: str = None):
     """Simulate DSS F1 (Energy Optimization) job processing with status updates"""
+
     try:
         # Update job status to running
         jobs_storage[job_id]["status"] = "running"

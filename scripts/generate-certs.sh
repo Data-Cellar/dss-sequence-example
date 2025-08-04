@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# Generate certificates for a specific connector
+# Generate certificates and keystore for a specific connector
+# Creates PEM certificate, PKCS12 keystore, and vault properties
+# Private key is stored securely in PKCS12 keystore only
 # Usage: ./generate-certs.sh <cert_dir> <common_name>
 
 CERT_DIR="${1:-}"
@@ -23,7 +25,7 @@ openssl req -new -x509 -key "$CERT_DIR/key.pem" -out "$CERT_DIR/cert.pem" -days 
 # Convert to PKCS12 format for Java
 openssl pkcs12 -export -out "$CERT_DIR/cert.pfx" -inkey "$CERT_DIR/key.pem" -in "$CERT_DIR/cert.pem" -passout pass:datacellar
 
-# Generate vault properties with base64 encoded keys
+# Generate vault properties (public key and API key only)
 "$(dirname "$0")/generate-vault-properties.sh" "$CERT_DIR" "$COMMON_NAME"
 
 echo "Generated certificates for $COMMON_NAME in $CERT_DIR"

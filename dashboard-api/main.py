@@ -1,16 +1,19 @@
 import asyncio
+import json
 import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+import coloredlogs
 import httpx
 import uvicorn
+from edcpy.config import AppConfig
 from edcpy.edc_api import ConnectorController
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+coloredlogs.install(level="DEBUG")
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
@@ -20,8 +23,6 @@ app = FastAPI(
 )
 
 # Configuration
-DASHBOARD_CONNECTOR_URL = "http://dashboard_connector:29193"  # Management API
-DSS_CONNECTOR_URL = "http://dss_connector:19194"  # Protocol API for DSP communication
 DASHBOARD_BACKEND_URL = "http://dashboard_backend:28000"
 DSS_API_URL = "http://dss_mock_api:8000"
 
@@ -30,13 +31,82 @@ DASHBOARD_API_KEY = "dashboard-api-key"
 DSS_API_KEY = "dss-api-key"
 
 # EDC Configuration
-DSS_CONNECTOR_PROTOCOL_URL = "http://dss_connector:19194"
-DSS_CONNECTOR_ID = "dss-connector"
+DSS_CONNECTOR_PROTOCOL_URL = "http://dss_connector:19194/protocol"
+DSS_CONNECTOR_ID = "dss-participant"
+
+# Connector Ports
+DASHBOARD_CONNECTOR_MANAGEMENT_PORT = 29193
+DASHBOARD_CONNECTOR_CONTROL_PORT = 29192
+DASHBOARD_CONNECTOR_PUBLIC_PORT = 29291
+DASHBOARD_CONNECTOR_PROTOCOL_PORT = 29194
+DSS_CONNECTOR_PUBLIC_PORT = 19291
+
+# SSE Data Prefix Length
+SSE_DATA_PREFIX_LENGTH = 6  # Length of 'data: ' prefix in SSE messages
+
+# Timeout Constants (seconds)
+CREDENTIALS_TIMEOUT_SECONDS = 60
+HTTP_REQUEST_TIMEOUT_SECONDS = 30
+SSE_POLL_INTERVAL_SECONDS = 1
+
+# Service Ports
+DASHBOARD_API_PORT = 8000
+
+# Default Values
+DEFAULT_BUILDING_ID = "building_001"
+DEFAULT_OPTIMIZATION_TYPE = "energy_efficiency"
+
+# API Headers
+API_KEY_HEADER = "X-API-Key"
+AUTHORIZATION_HEADER = "Authorization"
+CONTENT_TYPE_HEADER = "Content-Type"
+ACCEPT_HEADER = "Accept"
+
+# Content Types
+JSON_CONTENT_TYPE = "application/json"
+SSE_CONTENT_TYPE = "text/event-stream"
+
+# EDC Asset ID
+DSS_F1_ASSET_ID = "POST-f1-jobs"
+
+# EDC Connector Configuration
+CONNECTOR_SCHEME = "http"
+DASHBOARD_CONNECTOR_HOST = "dashboard_connector"
+DASHBOARD_PARTICIPANT_ID = "dashboard-participant"
+DSS_PROVIDER_HOST = "dss_connector:19194"
+
+# HTTP Status Codes
+HTTP_NOT_FOUND = 404
+
+# Direct API Key for fallback
+DSS_BACKEND_KEY = "dss-backend-key"
+
+
+def create_edc_config() -> AppConfig:
+    """Create EDC configuration for dashboard connector"""
+
+    config = AppConfig()
+
+    # Configure connector details for dashboard connector
+    connector = AppConfig.Connector()
+    connector.scheme = CONNECTOR_SCHEME
+    connector.host = DASHBOARD_CONNECTOR_HOST
+    connector.connector_id = DASHBOARD_PARTICIPANT_ID
+    connector.participant_id = DASHBOARD_PARTICIPANT_ID
+    connector.management_port = DASHBOARD_CONNECTOR_MANAGEMENT_PORT
+    connector.control_port = DASHBOARD_CONNECTOR_CONTROL_PORT
+    connector.public_port = DASHBOARD_CONNECTOR_PUBLIC_PORT
+    connector.protocol_port = DASHBOARD_CONNECTOR_PROTOCOL_PORT
+    connector.api_key = DASHBOARD_API_KEY
+    connector.api_key_header = API_KEY_HEADER
+
+    config.connector = connector
+    return config
 
 
 class F1ToolRequest(BaseModel):
-    building_id: str = "building_001"
-    optimization_type: str = "energy_efficiency"
+    building_id: str = DEFAULT_BUILDING_ID
+    optimization_type: str = DEFAULT_OPTIMIZATION_TYPE
     user_id: str
     callback_url: Optional[str] = None
 
@@ -64,10 +134,12 @@ class SSEPullCredentialsReceiver:
 
     async def start_listening(self, provider_host: str):
         """Start listening for SSE messages from consumer backend"""
+
         sse_url = f"{self.consumer_backend_url}/pull/stream/provider/{provider_host}"
+
         headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Accept": "text/event-stream",
+            AUTHORIZATION_HEADER: f"Bearer {self.api_key}",
+            ACCEPT_HEADER: SSE_CONTENT_TYPE,
         }
 
         self._client = httpx.AsyncClient()
@@ -76,6 +148,7 @@ class SSEPullCredentialsReceiver:
         try:
             async with self._client.stream("GET", sse_url, headers=headers) as response:
                 response.raise_for_status()
+
                 async for line in response.aiter_lines():
                     if not self._listening:
                         break
@@ -86,12 +159,15 @@ class SSEPullCredentialsReceiver:
 
     async def _process_sse_line(self, line: str):
         """Process individual SSE message lines"""
+
         if line.startswith("data: "):
             try:
-                import json
+                data = json.loads(
+                    line[SSE_DATA_PREFIX_LENGTH:]
+                )  # Remove 'data: ' prefix
 
-                data = json.loads(line[6:])  # Remove 'data: ' prefix
                 transfer_id = data.get("transfer_process_id")
+
                 if transfer_id:
                     self.credentials[transfer_id] = data
                     logger.info(f"Received credentials for transfer {transfer_id}")
@@ -99,18 +175,22 @@ class SSEPullCredentialsReceiver:
                 pass
 
     async def get_credentials(
-        self, transfer_id: str, timeout: int = 60
+        self, transfer_id: str, timeout: int = CREDENTIALS_TIMEOUT_SECONDS
     ) -> Dict[str, Any]:
         """Wait for and retrieve credentials for a specific transfer"""
+
         for _ in range(timeout):
             if transfer_id in self.credentials:
                 return self.credentials[transfer_id]
-            await asyncio.sleep(1)
+            await asyncio.sleep(SSE_POLL_INTERVAL_SECONDS)
+
         raise TimeoutError(f"Credentials not received for transfer {transfer_id}")
 
     async def stop_listening(self):
         """Stop listening for SSE messages"""
+
         self._listening = False
+
         if self._client:
             await self._client.aclose()
 
@@ -121,10 +201,9 @@ async def run_edcpy_negotiation_and_transfer(
     """Use edcpy to handle contract negotiation and transfer process"""
 
     try:
-        # Initialize EDC controller
-        controller = ConnectorController(
-            management_url=DASHBOARD_CONNECTOR_URL, api_key=DASHBOARD_API_KEY
-        )
+        # Initialize EDC controller with custom config
+        edc_config = create_edc_config()
+        controller = ConnectorController(config=edc_config)
 
         # Start SSE listener for credentials
         sse_receiver = SSEPullCredentialsReceiver(
@@ -132,12 +211,13 @@ async def run_edcpy_negotiation_and_transfer(
         )
 
         # Start listening in background
-        provider_host = "dss_connector:19194"
+        provider_host = DSS_PROVIDER_HOST
         listen_task = asyncio.create_task(sse_receiver.start_listening(provider_host))
 
         try:
             # Run negotiation flow
             logger.info(f"Starting negotiation for asset {asset_id}")
+
             transfer_details = await controller.run_negotiation_flow(
                 counter_party_protocol_url=DSS_CONNECTOR_PROTOCOL_URL,
                 counter_party_connector_id=DSS_CONNECTOR_ID,
@@ -146,11 +226,12 @@ async def run_edcpy_negotiation_and_transfer(
 
             # Run transfer flow
             logger.info("Starting transfer process")
-            transfer_process = await controller.run_transfer_flow(
+
+            transfer_process_id = await controller.run_transfer_flow(
                 transfer_details=transfer_details, is_provider_push=False
             )
 
-            transfer_id = transfer_process.transfer_process_id
+            transfer_id = transfer_process_id
             logger.info(f"Transfer process initiated: {transfer_id}")
 
             # Wait for credentials via SSE
@@ -158,6 +239,7 @@ async def run_edcpy_negotiation_and_transfer(
 
             # Extract access token from credentials
             access_token = credentials.get("authKey") or credentials.get("token")
+
             if not access_token:
                 raise Exception("No access token in received credentials")
 
@@ -172,6 +254,7 @@ async def run_edcpy_negotiation_and_transfer(
             # Stop SSE listener
             await sse_receiver.stop_listening()
             listen_task.cancel()
+
             try:
                 await listen_task
             except asyncio.CancelledError:
@@ -197,8 +280,8 @@ async def call_dss_f1_service_with_token(
 
         # Call DSS connector's public API using the access token
         headers = {
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
+            AUTHORIZATION_HEADER: f"Bearer {access_token}",
+            CONTENT_TYPE_HEADER: JSON_CONTENT_TYPE,
         }
 
         callback_url = (
@@ -208,11 +291,11 @@ async def call_dss_f1_service_with_token(
         # Use the DSS connector's public API endpoint
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"http://dss_connector:19291/api/f1/jobs",  # DSS Connector Public API
+                f"http://dss_connector:{DSS_CONNECTOR_PUBLIC_PORT}/api/f1/jobs",  # DSS Connector Public API
                 json=job_request,
                 headers=headers,
                 params={"callback_url": callback_url},
-                timeout=30,
+                timeout=HTTP_REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
 
@@ -239,8 +322,8 @@ async def call_dss_f1_service_direct(f1_request: F1ToolRequest) -> str:
         }
 
         headers = {
-            "X-API-Key": "dss-backend-key",
-            "Content-Type": "application/json",
+            API_KEY_HEADER: DSS_BACKEND_KEY,
+            CONTENT_TYPE_HEADER: JSON_CONTENT_TYPE,
         }
 
         callback_url = (
@@ -253,7 +336,7 @@ async def call_dss_f1_service_direct(f1_request: F1ToolRequest) -> str:
                 json=job_request,
                 headers=headers,
                 params={"callback_url": callback_url},
-                timeout=30,
+                timeout=HTTP_REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()
 
@@ -313,7 +396,7 @@ async def process_f1_request(request_id: str, f1_request: F1ToolRequest):
         requests_storage[request_id]["status"] = "processing_via_edcpy"
 
         # Use edcpy for complete negotiation and transfer flow
-        asset_id = "dss-f1-service"  # Predefined in DSS connector
+        asset_id = DSS_F1_ASSET_ID  # We know this asset ID in advance
         dss_job_id = await run_edcpy_negotiation_and_transfer(asset_id, f1_request)
 
         requests_storage[request_id]["dss_job_id"] = dss_job_id
@@ -334,7 +417,7 @@ async def get_request_status(request_id: str):
     """Get the status of a DSS F1 energy optimization tool request"""
 
     if request_id not in requests_storage:
-        raise HTTPException(status_code=404, detail="Request not found")
+        raise HTTPException(status_code=HTTP_NOT_FOUND, detail="Request not found")
 
     return requests_storage[request_id]
 
@@ -357,11 +440,9 @@ async def dss_webhook_callback(user_id: str, callback_data: Dict[str, Any]):
         if request_data["user_id"] == user_id and request_data.get(
             "dss_job_id"
         ) == callback_data.get("job_id"):
-
             request_data["status"] = "completed"
             request_data["dss_result"] = callback_data.get("result", {})
             request_data["completed_at"] = datetime.now().isoformat()
-
             logger.info(f"Updated request {request_id} with DSS results")
             break
 
@@ -369,4 +450,4 @@ async def dss_webhook_callback(user_id: str, callback_data: Dict[str, Any]):
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=DASHBOARD_API_PORT)
