@@ -60,7 +60,7 @@ task clean-certs
 task test-health
 
 # Test complete F1 energy optimization flow (30-second process)
-task test-f1-request
+task test-dss-request
 
 # Show development endpoints and info
 task dev-info

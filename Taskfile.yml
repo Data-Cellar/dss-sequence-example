@@ -85,7 +85,7 @@ tasks:
     cmds:
       - "{{.ROOT_DIR}}/scripts/test-health.sh"
 
-  test-f1-request:
+  test-dss-request:
     desc: Test a complete DSS F1 (Energy Optimization) request flow
     cmds:
-      - "{{.ROOT_DIR}}/scripts/test-f1-request.sh"
+      - "{{.ROOT_DIR}}/scripts/test-dss-request.sh"
