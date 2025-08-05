@@ -18,6 +18,10 @@ from pydantic import BaseModel
 coloredlogs.install(level="DEBUG")
 logger = logging.getLogger(__name__)
 
+# Configure httpcore and httpx loggers to INFO level
+logging.getLogger("httpcore").setLevel(logging.INFO)
+logging.getLogger("httpx").setLevel(logging.INFO)
+
 app = FastAPI(
     title="Dashboard Backend API",
     description="Dashboard backend that orchestrates DSS F1 (Energy Optimization) tool access via connectors",
