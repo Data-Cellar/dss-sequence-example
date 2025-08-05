@@ -1,6 +1,6 @@
 # Dashboard-DSS Integration Example
 
-This is a proof-of-concept implementation that demonstrates how the Dashboard interacts with the DSS F1 (Energy Optimization) tool using data space connectors. Both the Dashboard and DSS components are mock implementations: they do not contain any real business logic, and all interactions are random and hardcoded. The purpose of this repository is to show how connector-based communication can be set up and tested.
+This is a proof-of-concept implementation that demonstrates how the Dashboard interacts with the DSS F1 tool using data space connectors (or any other tool with long-running tasks, for that matter). Both the Dashboard and DSS components are mock implementations: they do not contain any real business logic, and all interactions are random and hardcoded. The purpose of this repository is to show how connector-based communication can be set up and tested.
 
 This example uses the pre-built `agmangas/edc-connector` Docker image and demonstrates the complete flow from the sequence diagram below.
 
