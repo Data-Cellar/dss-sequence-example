@@ -53,7 +53,19 @@ def _extract_hostname(host: str) -> str:
         host_for_parse = f"//{host}"
     else:
         host_for_parse = host
-    
+
     parsed = urlparse(host_for_parse)
 
-    return parsed.hostname or host.split(":")[0]
+    if parsed.hostname:
+        return parsed.hostname
+
+    # Fallback: extract hostname from netloc by removing port
+    netloc = parsed.netloc or host
+    # Remove userinfo if present (user:pass@host)
+    if "@" in netloc:
+        netloc = netloc.split("@", 1)[1]
+    # Remove port if present
+    if ":" in netloc:
+        netloc = netloc.split(":", 1)[0]
+
+    return netloc
