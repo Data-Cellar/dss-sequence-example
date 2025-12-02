@@ -1,111 +1,13 @@
 services:
-  # Dashboard Connector (Consumer)
-  dashboard_connector:
-    image: agmangas/edc-connector:main
-    platform: linux/amd64
-    container_name: dashboard_connector
-    restart: on-failure
-    environment:
-      PROPERTIES_FILE_PATH: /config/dashboard-connector.properties
-      KEYSTORE_PATH: /certs/cert.pfx
-      KEYSTORE_PASSWORD: datacellar
-      API_AUTH_KEY: dashboard-api-key
-    ports:
-      - "29191:29191"
-      - "29193:29193" # Management API
-      - "29194:29194" # Protocol API
-      - "29291:29291" # Public API
-      - "29192:29192" # Control API
-    volumes:
-      - ./config:/config:ro
-      - ./certs/dashboard:/certs:ro
-    extra_hosts:
-      - host.docker.internal:host-gateway
-
-  # Dashboard Consumer Backend (handles SSE and messaging)
-  dashboard_backend:
-    image: agmangas/edc-connector:main
-    platform: linux/amd64
-    container_name: dashboard_backend
-    restart: on-failure
-    command: ["run-http-backend"]
-    environment:
-      EDC_CERT_PATH: /certs/cert.pem
-      EDC_RABBIT_URL: amqp://guest:guest@dashboard_broker:5672
-      EDC_HTTP_API_PORT: 28000
-      API_AUTH_KEY: dashboard-api-key
-    ports:
-      - "28000:28000"
-    volumes:
-      - ./certs/dss:/certs:ro
-    depends_on:
-      - dashboard_broker
-    extra_hosts:
-      - host.docker.internal:host-gateway
-
-  # Dashboard Message Broker
-  dashboard_broker:
-    image: rabbitmq:3.13-management
-    container_name: dashboard_broker
-    restart: on-failure
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
-
-  # DSS Connector (Provider)
-  dss_connector:
-    image: agmangas/edc-connector:latest
-    platform: linux/amd64
-    container_name: dss_connector
-    restart: on-failure
-    environment:
-      PROPERTIES_FILE_PATH: /config/dss-connector.properties
-      KEYSTORE_PATH: /certs/cert.pfx
-      KEYSTORE_PASSWORD: datacellar
-      API_AUTH_KEY: dss-api-key
-      BACKEND_API_KEY: dss-backend-key
-    ports:
-      - "19191:19191"
-      - "19193:19193" # Management API
-      - "19194:19194" # Protocol API
-      - "19291:19291" # Public API
-      - "19192:19192" # Control API
-    volumes:
-      - ./config:/config:ro
-      - ./certs/dss:/certs:ro
-    depends_on:
-      - dss_mock_api
-    extra_hosts:
-      - host.docker.internal:host-gateway
-
-  # DSS Mock API (simulates the actual DSS F1 service)
-  dss_mock_api:
-    build:
-      context: .
-      dockerfile: Dockerfile.dss-api
-    container_name: dss_mock_api
-    restart: on-failure
-    environment:
-      BACKEND_API_KEY: dss-backend-key
-    ports:
-      - "18000:8000"
-    extra_hosts:
-      - host.docker.internal:host-gateway
-
-  # Dashboard Backend API (simulates the actual Dashboard backend)
-  dashboard_api:
-    build:
-      context: .
-      dockerfile: Dockerfile.dashboard-api
-    container_name: dashboard_api
-    restart: on-failure
-    ports:
-      - "38000:8000"
-    depends_on:
-      - dashboard_connector
-      - dashboard_backend
-    extra_hosts:
-      - host.docker.internal:host-gateway
+    app:
+        build:
+            context: .
+            dockerfile: dockerfile
+        volumes:
+            - .:/app
+        environment:
+            - ENV=development
+        ports:
+            - "8002:8002"
+        env_file:
+            - .env
