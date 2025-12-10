@@ -1,8 +1,8 @@
 import os
 
 # Configuration
-DASHBOARD_BACKEND_URL = os.environ.get(
-    "DASHBOARD_BACKEND_URL",
+DASHBOARD_CONSUMER_BACKEND_URL = os.environ.get(
+    "DASHBOARD_CONSUMER_BACKEND_URL",
     "http://dashboard_backend:28000")
 
 # API Keys
@@ -37,9 +37,9 @@ JSON_CONTENT_TYPE = "application/json"
 SSE_CONTENT_TYPE = "text/event-stream"
 
 # EDC Connector Configuration
-CONNECTOR_SCHEME = "http"
-DASHBOARD_CONNECTOR_HOST = "dashboard_connector"
-DASHBOARD_PARTICIPANT_ID = "dashboard-participant"
+CONNECTOR_SCHEME = "https"
+DASHBOARD_CONNECTOR_HOST = "certh.dashboard.datacellar.iti.gr"
+DASHBOARD_PARTICIPANT_ID = "certh"
 
 # HTTP Status Codes
 HTTP_NOT_FOUND = 404

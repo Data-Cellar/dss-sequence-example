@@ -3,7 +3,7 @@ from logger_config import logger
 from edc_connector.edc_config import create_edc_config
 from edc_connector.sse_receiver import SSEPullCredentialsReceiver
 from edcpy.edc_api import ConnectorController
-from config import DASHBOARD_BACKEND_URL, DASHBOARD_API_KEY
+from config import DASHBOARD_CONSUMER_BACKEND_URL, DASHBOARD_API_KEY
 
 
 async def run_edcpy_negotiation_and_transfer(
@@ -19,7 +19,7 @@ async def run_edcpy_negotiation_and_transfer(
 
         # Start SSE listener for credentials
         sse_receiver = SSEPullCredentialsReceiver(
-            DASHBOARD_BACKEND_URL, DASHBOARD_API_KEY)
+            DASHBOARD_CONSUMER_BACKEND_URL, DASHBOARD_API_KEY)
 
         # Start listening in the background
         listen_task = asyncio.create_task(

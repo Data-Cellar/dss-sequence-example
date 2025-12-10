@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Body, HTTPException
 from pydantic import BaseModel, HttpUrl, field_validator
 from services.edcpy_service import run_edcpy_negotiation_and_transfer
+import traceback
 
 router = APIRouter()
 
@@ -30,6 +31,8 @@ async def initiate_negotiation_and_transfer(
             request.provider_host
         )
     except Exception as e:
+        print("FULL ERROR TRACEBACK:")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=500,
             detail=f"Negotiation and transfer failed: {str(e)}"
