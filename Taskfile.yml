@@ -16,10 +16,15 @@ tasks:
     cmds:
       - poetry run uvicorn main:app --reload --port 8002
 
-  docker-up:
-    desc: Run the application with Docker Compose
+  docker-up-dev:
+    desc: Run the application with Docker Compose (Development)
     cmds:
-      - docker compose up -d --build --wait
+      - docker compose -f {{.ROOT_DIR}}/docker-compose.yml up -d --build --wait
+
+  docker-up-prod:
+    desc: Run the application with Docker Compose (Production)
+    cmds:
+      - docker compose -f {{.ROOT_DIR}}/docker-compose.prod.yml up -d --build --wait
 
   format:
     desc: Format Python code using black and ruff
@@ -34,7 +39,7 @@ tasks:
 
   test-e2e:
     desc: Run the E2E negotiation and transfer test
-    deps: [install, docker-up]
+    deps: [install, docker-up-dev]
     cmds:
       - >
         poetry run python scripts/run_e2e.py
