@@ -1,6 +1,26 @@
 version: "3"
 
 tasks:
+  default:
+    silent: true
+    cmds:
+      - task --list
+
+  install:
+    desc: Install dependencies
+    cmds:
+      - poetry install
+
+  dev:
+    desc: Run the application locally in development mode
+    cmds:
+      - poetry run uvicorn main:app --reload --port 8002
+
+  docker-up:
+    desc: Run the application with Docker Compose
+    cmds:
+      - docker compose up -d --build --wait
+
   format:
     desc: Format Python code using black and ruff
     cmds:
@@ -11,3 +31,19 @@ tasks:
     desc: Lint Python code using ruff
     cmds:
       - poetry run ruff check .
+
+  test-e2e:
+    desc: Run the E2E negotiation and transfer test
+    deps: [install, docker-up]
+    cmds:
+      - >
+        poetry run python scripts/run_e2e.py
+        --asset-id {{.ASSET_ID}}
+        --provider-url {{.PROVIDER_URL}}
+        --provider-id {{.PROVIDER_ID}}
+        --provider-host {{.PROVIDER_HOST}}
+    vars:
+      ASSET_ID: '{{default "test-asset" .ASSET_ID}}'
+      PROVIDER_URL: '{{default "http://provider:9194/protocol" .PROVIDER_URL}}'
+      PROVIDER_ID: '{{default "provider" .PROVIDER_ID}}'
+      PROVIDER_HOST: '{{default "provider" .PROVIDER_HOST}}'
