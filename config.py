@@ -1,56 +1,156 @@
+"""
+Application configuration (env-driven).
+
+This module defines configuration values as **module-level constants** so they can be imported
+from anywhere without initialization. Values are read from environment variables with
+developer-friendly defaults for local/dev usage.
+"""
+
+from __future__ import annotations
+
 import os
+from typing import Final
 
-"""
-Configuration settings for the Dashboard Mediator application.
+# ---------------------------------------------------------------------------
+# HTTP protocol constants (stable surface)
+# ---------------------------------------------------------------------------
 
-This module loads environment variables and defines constants used throughout the application,
-such as API keys, port numbers, timeout settings, and EDC connector details.
-"""
+# Standard HTTP header keys used in requests.
+API_KEY_HEADER: Final[str] = "X-API-Key"
+AUTHORIZATION_HEADER: Final[str] = "Authorization"
+CONTENT_TYPE_HEADER: Final[str] = "Content-Type"
+ACCEPT_HEADER: Final[str] = "Accept"
 
-# Configuration
-DASHBOARD_CONSUMER_BACKEND_URL = os.environ.get(
-    "DASHBOARD_CONSUMER_BACKEND_URL", "http://dashboard_backend:28000"
+# Standard HTTP content type values.
+JSON_CONTENT_TYPE: Final[str] = "application/json"
+SSE_CONTENT_TYPE: Final[str] = "text/event-stream"
+
+# Standard HTTP status codes.
+HTTP_NOT_FOUND: Final[int] = 404
+
+
+# ---------------------------------------------------------------------------
+# Dashboard consumer backend (SSE credentials stream)
+# ---------------------------------------------------------------------------
+
+# Env: DASHBOARD_CONSUMER_BACKEND_URL
+#
+# Base URL of the Dashboard Consumer Backend service that provides the SSE stream for credentials.
+# Example (docker): http://dashboard_backend:28000
+DASHBOARD_CONSUMER_BACKEND_URL: Final[str] = (
+    os.environ.get("DASHBOARD_CONSUMER_BACKEND_URL", "http://dashboard_backend:28000")
+    .strip()
+    .rstrip("/")
 )
 
-# API Keys
-DASHBOARD_API_KEY = os.environ.get("DASHBOARD_API_KEY", "dashboard-api-key")
+# Env: DASHBOARD_API_KEY
+#
+# Token/API key used to authenticate requests to the Dashboard Consumer Backend (SSE connection).
+# Note: the same value is also used as the EDC connector API key in `edc_connector/edc_config.py`.
+DASHBOARD_API_KEY: Final[str] = os.environ.get("DASHBOARD_API_KEY", "dashboard-api-key")
 
-# Connector Ports
-DASHBOARD_CONNECTOR_MANAGEMENT_PORT = int(
-    os.environ.get("DASHBOARD_CONNECTOR_MANAGEMENT_PORT", 29193)
+
+# ---------------------------------------------------------------------------
+# EDC connector location & identity
+# ---------------------------------------------------------------------------
+
+# Env: CONNECTOR_SCHEME
+#
+# Protocol scheme used for connector URLs.
+CONNECTOR_SCHEME: Final[str] = (
+    os.environ.get("CONNECTOR_SCHEME", "https").strip().lower()
 )
-DASHBOARD_CONNECTOR_CONTROL_PORT = int(
-    os.environ.get("DASHBOARD_CONNECTOR_CONTROL_PORT", 29192)
+
+# Env: DASHBOARD_CONNECTOR_HOST
+#
+# Hostname where the dashboard connector is reachable.
+DASHBOARD_CONNECTOR_HOST: Final[str] = os.environ.get(
+    "DASHBOARD_CONNECTOR_HOST", "certh.dashboard.datacellar.iti.gr"
+).strip()
+
+# Env: DASHBOARD_PARTICIPANT_ID
+#
+# Unique participant identifier for this EDC connector instance (also used as connector id).
+DASHBOARD_PARTICIPANT_ID: Final[str] = os.environ.get(
+    "DASHBOARD_PARTICIPANT_ID", "certh"
+).strip()
+
+
+# ---------------------------------------------------------------------------
+# EDC connector ports
+# ---------------------------------------------------------------------------
+
+_management_port_raw = os.environ.get("DASHBOARD_CONNECTOR_MANAGEMENT_PORT")
+try:
+    DASHBOARD_CONNECTOR_MANAGEMENT_PORT: Final[int] = (
+        29193 if _management_port_raw is None else int(_management_port_raw)
+    )
+except ValueError as exc:
+    raise ValueError(
+        f"Invalid integer for env var 'DASHBOARD_CONNECTOR_MANAGEMENT_PORT': {_management_port_raw!r}"
+    ) from exc
+
+_control_port_raw = os.environ.get("DASHBOARD_CONNECTOR_CONTROL_PORT")
+try:
+    DASHBOARD_CONNECTOR_CONTROL_PORT: Final[int] = (
+        29192 if _control_port_raw is None else int(_control_port_raw)
+    )
+except ValueError as exc:
+    raise ValueError(
+        f"Invalid integer for env var 'DASHBOARD_CONNECTOR_CONTROL_PORT': {_control_port_raw!r}"
+    ) from exc
+
+_public_port_raw = os.environ.get("DASHBOARD_CONNECTOR_PUBLIC_PORT")
+try:
+    DASHBOARD_CONNECTOR_PUBLIC_PORT: Final[int] = (
+        29291 if _public_port_raw is None else int(_public_port_raw)
+    )
+except ValueError as exc:
+    raise ValueError(
+        f"Invalid integer for env var 'DASHBOARD_CONNECTOR_PUBLIC_PORT': {_public_port_raw!r}"
+    ) from exc
+
+_protocol_port_raw = os.environ.get("DASHBOARD_CONNECTOR_PROTOCOL_PORT")
+try:
+    DASHBOARD_CONNECTOR_PROTOCOL_PORT: Final[int] = (
+        29194 if _protocol_port_raw is None else int(_protocol_port_raw)
+    )
+except ValueError as exc:
+    raise ValueError(
+        f"Invalid integer for env var 'DASHBOARD_CONNECTOR_PROTOCOL_PORT': {_protocol_port_raw!r}"
+    ) from exc
+
+
+# ---------------------------------------------------------------------------
+# Derived/handy connector URLs (constants; safe to import)
+# ---------------------------------------------------------------------------
+
+DASHBOARD_CONNECTOR_PROTOCOL_URL: Final[str] = (
+    f"{CONNECTOR_SCHEME}://{DASHBOARD_CONNECTOR_HOST}:{DASHBOARD_CONNECTOR_PROTOCOL_PORT}/protocol"
 )
-DASHBOARD_CONNECTOR_PUBLIC_PORT = int(
-    os.environ.get("DASHBOARD_CONNECTOR_PUBLIC_PORT", 29291)
-)
-DASHBOARD_CONNECTOR_PROTOCOL_PORT = int(
-    os.environ.get("DASHBOARD_CONNECTOR_PROTOCOL_PORT", 29194)
+
+DASHBOARD_CONNECTOR_MANAGEMENT_URL: Final[str] = (
+    f"{CONNECTOR_SCHEME}://{DASHBOARD_CONNECTOR_HOST}:{DASHBOARD_CONNECTOR_MANAGEMENT_PORT}"
 )
 
+DASHBOARD_CONNECTOR_CONTROL_URL: Final[str] = (
+    f"{CONNECTOR_SCHEME}://{DASHBOARD_CONNECTOR_HOST}:{DASHBOARD_CONNECTOR_CONTROL_PORT}"
+)
 
-# SSE Data Prefix Length
-SSE_DATA_PREFIX_LENGTH = 6
+DASHBOARD_CONNECTOR_PUBLIC_URL: Final[str] = (
+    f"{CONNECTOR_SCHEME}://{DASHBOARD_CONNECTOR_HOST}:{DASHBOARD_CONNECTOR_PUBLIC_PORT}"
+)
 
-# Timeout Constants (seconds)
-CREDENTIALS_TIMEOUT_SECONDS = 60
-SSE_POLL_INTERVAL_SECONDS = 1
 
-# API Headers
-API_KEY_HEADER = "X-API-Key"
-AUTHORIZATION_HEADER = "Authorization"
-CONTENT_TYPE_HEADER = "Content-Type"
-ACCEPT_HEADER = "Accept"
+# ---------------------------------------------------------------------------
+# SSE parsing & timeouts
+# ---------------------------------------------------------------------------
 
-# Content Types
-JSON_CONTENT_TYPE = "application/json"
-SSE_CONTENT_TYPE = "text/event-stream"
+# Used to strip the SSE "data: " prefix during parsing.
+SSE_DATA_PREFIX_LENGTH: Final[int] = len("data: ")
 
-# EDC Connector Configuration
-CONNECTOR_SCHEME = "https"
-DASHBOARD_CONNECTOR_HOST = "certh.dashboard.datacellar.iti.gr"
-DASHBOARD_PARTICIPANT_ID = "certh"
+# The maximum duration (in seconds) to wait for credentials to arrive via the SSE stream.
+CREDENTIALS_TIMEOUT_SECONDS: Final[int] = 60
 
-# HTTP Status Codes
-HTTP_NOT_FOUND = 404
+# The interval (in seconds) at which to poll for received credentials while waiting.
+SSE_POLL_INTERVAL_SECONDS: Final[int] = 1

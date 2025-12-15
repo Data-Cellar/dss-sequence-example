@@ -41,14 +41,4 @@ tasks:
     desc: Run the E2E negotiation and transfer test
     deps: [install, docker-up-dev]
     cmds:
-      - >
-        poetry run python scripts/run_e2e.py
-        --asset-id {{.ASSET_ID}}
-        --provider-url {{.PROVIDER_URL}}
-        --provider-id {{.PROVIDER_ID}}
-        --provider-host {{.PROVIDER_HOST}}
-    vars:
-      ASSET_ID: '{{default "test-asset" .ASSET_ID}}'
-      PROVIDER_URL: '{{default "http://provider:9194/protocol" .PROVIDER_URL}}'
-      PROVIDER_ID: '{{default "provider" .PROVIDER_ID}}'
-      PROVIDER_HOST: '{{default "provider" .PROVIDER_HOST}}'
+      - poetry run python scripts/run_e2e.py {{.CLI_ARGS}}
