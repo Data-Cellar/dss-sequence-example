@@ -7,6 +7,13 @@ from edc_connector.edc_config import create_edc_config
 from edc_connector.sse_receiver import SSEPullCredentialsReceiver
 from logger_config import logger
 
+"""
+EDC Service Wrapper.
+
+This module provides a high-level service to handle the orchestration of EDC contract negotiation
+and data transfer, utilizing the `edcpy` library and SSE for credential retrieval.
+"""
+
 
 async def run_edcpy_negotiation_and_transfer(
     asset_id: str,
@@ -14,7 +21,27 @@ async def run_edcpy_negotiation_and_transfer(
     provider_connector_id: str,
     provider_host: str,
 ) -> dict:
-    """Use edcpy to handle contract negotiation and transfer process"""
+    """
+    Use edcpy to handle contract negotiation and transfer process.
+
+    This function initializes the EDC controller, starts an SSE listener for credentials,
+    negotiates a contract for the specified asset, and initiates the data transfer.
+    It waits for the access token and endpoint URL to be delivered via SSE.
+
+    Args:
+        asset_id (str): The unique identifier of the asset to transfer.
+        provider_connector_protocol_url (str): The protocol URL of the provider's EDC connector.
+        provider_connector_id (str): The identifier of the provider's connector.
+        provider_host (str): The hostname of the provider.
+
+    Returns:
+        dict: A dictionary containing the access credentials:
+            - bearer_token (str): The JWT access token.
+            - endpoint_url (str): The URL to access the data.
+
+    Raises:
+        Exception: If the negotiation fails, transfer fails, or credentials are invalid/missing.
+    """
     try:
         # Initialize EDC controller with custom config
         edc_config = create_edc_config()

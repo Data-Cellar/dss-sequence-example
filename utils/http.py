@@ -7,6 +7,13 @@ from config import (
     SSE_CONTENT_TYPE,
 )
 
+"""
+HTTP Utilities.
+
+This module provides utility functions for HTTP operations, such as constructing headers
+and parsing hostnames from URLs.
+"""
+
 
 def build_headers(token: str, sse: bool = False, bearer: bool = True) -> dict:
     """
@@ -18,7 +25,7 @@ def build_headers(token: str, sse: bool = False, bearer: bool = True) -> dict:
         bearer (bool, optional): If True, prepends "Bearer " to the token. Defaults to True.
 
     Returns:
-        dict: Headers dictionary.
+        dict: Headers dictionary containing Authorization and Content-Type/Accept headers.
     """
     headers = {AUTHORIZATION_HEADER: f"Bearer {token}" if bearer else token}
 
@@ -32,12 +39,10 @@ def build_headers(token: str, sse: bool = False, bearer: bool = True) -> dict:
 
 def _extract_hostname(host: str) -> str:
     """
-    Extract the hostname from a URL or host string by removing the scheme, port, and path.
+    Extract the hostname from a URL or host string.
 
-    If the input string does not contain a scheme (e.g., "http://"), a temporary
-    scheme is prepended to allow `urlparse` to correctly extract the hostname.
-    If `urlparse` cannot determine the hostname, the function falls back to
-    splitting the input at the colon and taking the first part.
+    This function isolates the hostname by removing the scheme, port, and path.
+    It handles input strings with or without a scheme (e.g., "http://").
 
     Args:
         host (str): The input URL or host string. Can include scheme, port, or path.

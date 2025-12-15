@@ -1,16 +1,25 @@
 import coloredlogs
 import logging
 
+"""
+Logging Configuration.
+
+This module configures the application-wide logging settings, including log levels and output formatting.
+"""
+
 
 def setup_logging(level: str = "DEBUG") -> logging.Logger:
     """
     Configure logging for the application.
 
+    Sets up colored logging and configures log levels for specific libraries
+    to reduce noise.
+
     Args:
-        level: Logging level (DEBUG, INFO, WARNING, etc.)
+        level (str, optional): The default logging level (e.g., "DEBUG", "INFO", "WARNING"). Defaults to "DEBUG".
 
     Returns:
-        Configured logger
+        logging.Logger: The configured logger instance named "mediator".
     """
 
     coloredlogs.install(level=level)

@@ -11,6 +11,13 @@ from config import (
     API_KEY_HEADER,
 )
 
+"""
+EDC Configuration Factory.
+
+This module provides functionality to create and configure the Eclipse Dataspace Connector (EDC)
+settings required for the application's interaction with the dataspace.
+"""
+
 
 def create_edc_config() -> AppConfig:
     """
@@ -20,10 +27,8 @@ def create_edc_config() -> AppConfig:
     connection details, participant identifiers, port configurations, and API authentication
     settings, and assigns it to the `AppConfig` instance.
 
-    Returns
-    -------
-    AppConfig
-        An `AppConfig` object with a fully configured `Connector` ready to use.
+    Returns:
+        AppConfig: An `AppConfig` object with a fully configured `Connector` ready to use.
     """
 
     config = AppConfig()

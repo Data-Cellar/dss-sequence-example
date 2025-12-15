@@ -1,5 +1,12 @@
 import os
 
+"""
+Configuration settings for the Dashboard Mediator application.
+
+This module loads environment variables and defines constants used throughout the application,
+such as API keys, port numbers, timeout settings, and EDC connector details.
+"""
+
 # Configuration
 DASHBOARD_CONSUMER_BACKEND_URL = os.environ.get(
     "DASHBOARD_CONSUMER_BACKEND_URL", "http://dashboard_backend:28000"
