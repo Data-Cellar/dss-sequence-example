@@ -2,21 +2,25 @@ import os
 
 # Configuration
 DASHBOARD_CONSUMER_BACKEND_URL = os.environ.get(
-    "DASHBOARD_CONSUMER_BACKEND_URL",
-    "http://dashboard_backend:28000")
+    "DASHBOARD_CONSUMER_BACKEND_URL", "http://dashboard_backend:28000"
+)
 
 # API Keys
 DASHBOARD_API_KEY = os.environ.get("DASHBOARD_API_KEY", "dashboard-api-key")
 
 # Connector Ports
 DASHBOARD_CONNECTOR_MANAGEMENT_PORT = int(
-    os.environ.get("DASHBOARD_CONNECTOR_MANAGEMENT_PORT", 29193))
+    os.environ.get("DASHBOARD_CONNECTOR_MANAGEMENT_PORT", 29193)
+)
 DASHBOARD_CONNECTOR_CONTROL_PORT = int(
-    os.environ.get("DASHBOARD_CONNECTOR_CONTROL_PORT", 29192))
+    os.environ.get("DASHBOARD_CONNECTOR_CONTROL_PORT", 29192)
+)
 DASHBOARD_CONNECTOR_PUBLIC_PORT = int(
-    os.environ.get("DASHBOARD_CONNECTOR_PUBLIC_PORT", 29291))
+    os.environ.get("DASHBOARD_CONNECTOR_PUBLIC_PORT", 29291)
+)
 DASHBOARD_CONNECTOR_PROTOCOL_PORT = int(
-    os.environ.get("DASHBOARD_CONNECTOR_PROTOCOL_PORT", 29194))
+    os.environ.get("DASHBOARD_CONNECTOR_PROTOCOL_PORT", 29194)
+)
 
 
 # SSE Data Prefix Length

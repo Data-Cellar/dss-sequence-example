@@ -21,19 +21,17 @@ class NegotiationRequest(BaseModel):
 
 
 @router.post("/connector/initiate")
-async def initiate_negotiation_and_transfer(
-        request: NegotiationRequest = Body(...)):
+async def initiate_negotiation_and_transfer(request: NegotiationRequest = Body(...)):
     try:
         return await run_edcpy_negotiation_and_transfer(
             request.asset_id,
             str(request.provider_connector_protocol_url),
             request.provider_connector_id,
-            request.provider_host
+            request.provider_host,
         )
     except Exception as e:
         print("FULL ERROR TRACEBACK:")
         print(traceback.format_exc())
         raise HTTPException(
-            status_code=500,
-            detail=f"Negotiation and transfer failed: {str(e)}"
+            status_code=500, detail=f"Negotiation and transfer failed: {str(e)}"
         )

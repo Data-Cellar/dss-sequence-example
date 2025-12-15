@@ -4,7 +4,14 @@ import pprint
 import json
 from typing import Dict, Any
 
-from config import AUTHORIZATION_HEADER, ACCEPT_HEADER, SSE_CONTENT_TYPE, SSE_DATA_PREFIX_LENGTH, CREDENTIALS_TIMEOUT_SECONDS, SSE_POLL_INTERVAL_SECONDS
+from config import (
+    AUTHORIZATION_HEADER,
+    ACCEPT_HEADER,
+    SSE_CONTENT_TYPE,
+    SSE_DATA_PREFIX_LENGTH,
+    CREDENTIALS_TIMEOUT_SECONDS,
+    SSE_POLL_INTERVAL_SECONDS,
+)
 from utils.http import _extract_hostname
 from logger_config import logger
 
@@ -59,8 +66,7 @@ class SSEPullCredentialsReceiver:
 
                 if transfer_id:
                     self.credentials[transfer_id] = data
-                    logger.info(
-                        f"Received credentials for transfer {transfer_id}:")
+                    logger.info(f"Received credentials for transfer {transfer_id}:")
 
                     logger.debug(
                         f"SSE message for transfer '{transfer_id}':\n{pprint.pformat(data)}"
@@ -79,8 +85,7 @@ class SSEPullCredentialsReceiver:
 
             await asyncio.sleep(SSE_POLL_INTERVAL_SECONDS)
 
-        raise TimeoutError(
-            f"Credentials not received for transfer {transfer_id}")
+        raise TimeoutError(f"Credentials not received for transfer {transfer_id}")
 
     async def stop_listening(self):
         """Stop listening for SSE messages"""

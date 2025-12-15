@@ -15,7 +15,4 @@ app.include_router(router=router, prefix="/api")
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "service": "Dashboard Mediator"
-    }
+    return {"status": "healthy", "service": "Dashboard Mediator"}

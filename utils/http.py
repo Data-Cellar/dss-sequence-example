@@ -1,5 +1,11 @@
 from urllib.parse import urlparse
-from config import AUTHORIZATION_HEADER, CONTENT_TYPE_HEADER, ACCEPT_HEADER, JSON_CONTENT_TYPE, SSE_CONTENT_TYPE
+from config import (
+    AUTHORIZATION_HEADER,
+    CONTENT_TYPE_HEADER,
+    ACCEPT_HEADER,
+    JSON_CONTENT_TYPE,
+    SSE_CONTENT_TYPE,
+)
 
 
 def build_headers(token: str, sse: bool = False, bearer: bool = True) -> dict:
@@ -14,9 +20,7 @@ def build_headers(token: str, sse: bool = False, bearer: bool = True) -> dict:
     Returns:
         dict: Headers dictionary.
     """
-    headers = {
-        AUTHORIZATION_HEADER: f"Bearer {token}" if bearer else token
-    }
+    headers = {AUTHORIZATION_HEADER: f"Bearer {token}" if bearer else token}
 
     if sse:
         headers[ACCEPT_HEADER] = SSE_CONTENT_TYPE
