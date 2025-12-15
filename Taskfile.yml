@@ -1,0 +1,13 @@
+version: "3"
+
+tasks:
+  format:
+    desc: Format Python code using black and ruff
+    cmds:
+      - poetry run black .
+      - poetry run ruff check --fix .
+
+  lint:
+    desc: Lint Python code using ruff
+    cmds:
+      - poetry run ruff check .
