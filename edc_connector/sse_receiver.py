@@ -74,7 +74,9 @@ class SSEPullCredentialsReceiver:
             ACCEPT_HEADER: SSE_CONTENT_TYPE,
         }
 
-        self._client = httpx.AsyncClient()
+        # Disable read timeout for SSE stream as it might be idle while waiting for events
+        timeout = httpx.Timeout(connect=30.0, read=None, write=30.0, pool=30.0)
+        self._client = httpx.AsyncClient(timeout=timeout)
         self._listening = True
 
         try:
