@@ -24,6 +24,7 @@ async def run_edcpy_negotiation_and_transfer(
     provider_connector_protocol_url: str,
     provider_connector_id: str,
     provider_host: str,
+    query_params: dict
 ) -> dict:
     """
     Use edcpy to handle contract negotiation and transfer process.
@@ -82,7 +83,7 @@ async def run_edcpy_negotiation_and_transfer(
             pull_message = await sse_receiver.get_credentials(transfer_id)
             
             # Step 5: Execute authenticated request
-            return await execute_authenticated_request(pull_message["request_args"])
+            return await execute_authenticated_request(pull_message["request_args"], query_params)
 
 
             # return {"bearer_token": bearer_token, "endpoint_url": endpoint_url}
@@ -101,7 +102,7 @@ async def run_edcpy_negotiation_and_transfer(
         logger.error(f"EDC negotiation and transfer failed: {e}")
         raise
 
-async def execute_authenticated_request(request_args: dict) -> str:
+async def execute_authenticated_request(request_args: dict, query_params: dict) -> str:
     """
     Execute an authenticated data request using provided credentials.
 
@@ -117,6 +118,7 @@ async def execute_authenticated_request(request_args: dict) -> str:
     # IMPORTANT: Normalize URL to include trailing slash (required by some endpoints)
     request_args = {**request_args}
     request_args["url"] = ensure_url_ends_with_slash(request_args["url"])
+    request_args["params"] = query_params
 
     # Configure timeout for data transfer requests (can be long-running)
     timeout = httpx.Timeout(

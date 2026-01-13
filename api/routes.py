@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Body, HTTPException
-from pydantic import BaseModel, HttpUrl, field_validator
+from pydantic import BaseModel, HttpUrl, field_validator, Field
 from services.edcpy_service import run_edcpy_negotiation_and_transfer
 import traceback
+from typing import Dict, Union
+
+QueryValue = Union[str, int, float, bool]
 
 """
 API routes for the Dashboard Mediator.
@@ -11,7 +14,6 @@ via the Eclipse Dataspace Connector (EDC).
 """
 
 router = APIRouter()
-
 
 class NegotiationRequest(BaseModel):
     """
@@ -28,6 +30,7 @@ class NegotiationRequest(BaseModel):
     provider_connector_protocol_url: HttpUrl
     provider_connector_id: str
     provider_host: str
+    query_params: Dict[str, QueryValue] = Field(default_factory=dict)
 
     @field_validator("asset_id", "provider_connector_id", "provider_host")
     @classmethod
@@ -72,6 +75,7 @@ async def initiate_negotiation_and_transfer(request: NegotiationRequest = Body(.
             str(request.provider_connector_protocol_url),
             request.provider_connector_id,
             request.provider_host,
+            request.query_params
         )
     except Exception as e:
         print("FULL ERROR TRACEBACK:")
