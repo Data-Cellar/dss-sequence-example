@@ -1,4 +1,6 @@
 import asyncio
+import httpx
+import pprint
 
 from edcpy.edc_api import ConnectorController
 
@@ -6,6 +8,8 @@ from config import DASHBOARD_API_KEY, DASHBOARD_CONSUMER_BACKEND_URL
 from edc_connector.edc_config import create_edc_config
 from edc_connector.sse_receiver import SSEPullCredentialsReceiver
 from logger_config import logger
+from utils.http import ensure_url_ends_with_slash
+
 
 """
 EDC Service Wrapper.
@@ -52,11 +56,11 @@ async def run_edcpy_negotiation_and_transfer(
             DASHBOARD_CONSUMER_BACKEND_URL, DASHBOARD_API_KEY
         )
 
-        # Start listening in the background
+        # Step 1: Start listening in the background
         listen_task = asyncio.create_task(sse_receiver.start_listening(provider_host))
 
         try:
-            # Run negotiation flow
+            # Step 2: Negotiate contract
             logger.info(f"Starting negotiation for asset {asset_id}")
 
             transfer_details = await controller.run_negotiation_flow(
@@ -65,7 +69,7 @@ async def run_edcpy_negotiation_and_transfer(
                 asset_query=asset_id,
             )
 
-            # Run transfer flow
+            # Step 3: Start transfer
             logger.info("Starting transfer process")
             transfer_id = await controller.run_transfer_flow(
                 transfer_details=transfer_details, is_provider_push=False
@@ -73,29 +77,15 @@ async def run_edcpy_negotiation_and_transfer(
 
             logger.info(f"Transfer process initiated: {transfer_id}")
 
-            # Wait for credentials via SSE
-            credentials = await sse_receiver.get_credentials(transfer_id)
+            # Step 4: Get credentials
+            logger.info("Awaiting transfer credentials via SSE")
+            pull_message = await sse_receiver.get_credentials(transfer_id)
+            
+            # Step 5: Execute authenticated request
+            return await execute_authenticated_request(pull_message["request_args"])
 
-            # Extract access token from credentials
-            # The SSE message contains auth_code field with the JWT token
-            bearer_token = credentials.get("auth_code")
 
-            # Also get the endpoint URL from the credentials
-            endpoint_url = credentials.get("endpoint")
-
-            if not bearer_token:
-                logger.error(
-                    f"No access token in received credentials for transfer {transfer_id}"
-                )
-                raise Exception("No auth_code (access token) in received credentials")
-
-            if not endpoint_url:
-                logger.error(
-                    f"No endpoint URL in received credentials for transfer {transfer_id}"
-                )
-                raise Exception("No endpoint in received credentials")
-
-            return {"bearer_token": bearer_token, "endpoint_url": endpoint_url}
+            # return {"bearer_token": bearer_token, "endpoint_url": endpoint_url}
 
         finally:
             # Stop SSE listener
@@ -110,3 +100,41 @@ async def run_edcpy_negotiation_and_transfer(
     except Exception as e:
         logger.error(f"EDC negotiation and transfer failed: {e}")
         raise
+
+async def execute_authenticated_request(request_args: dict) -> str:
+    """
+    Execute an authenticated data request using provided credentials.
+
+    Args:
+        request_args: Dictionary containing HTTP request arguments (url, method, headers, etc.)
+
+    Returns:
+        Response text from the authenticated request
+    """
+
+    logger.info("Step 5: Executing authenticated data request")
+
+    # IMPORTANT: Normalize URL to include trailing slash (required by some endpoints)
+    request_args = {**request_args}
+    request_args["url"] = ensure_url_ends_with_slash(request_args["url"])
+
+    # Configure timeout for data transfer requests (can be long-running)
+    timeout = httpx.Timeout(
+        connect=10.0,
+        read=120.0,
+        write=10.0,
+        pool=10.0,
+    )
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.request(**request_args)
+        data = response.text
+
+        logger.info(
+            "Data transfer completed successfully ✅\n--- Response preview ---\n%s\n--- End of preview ---",
+            pprint.pformat(data, width=100, compact=True)[
+                :1024
+            ],
+        )
+
+        return data

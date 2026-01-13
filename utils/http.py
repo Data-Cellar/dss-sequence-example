@@ -79,3 +79,19 @@ def _extract_hostname(host: str) -> str:
         netloc = netloc.split(":", 1)[0]
 
     return netloc
+
+def ensure_url_ends_with_slash(url: str) -> str:
+    """
+    Ensure a URL ends with a trailing slash.
+
+    Some EDC endpoints require a trailing slash to function correctly.
+    This function normalizes URLs to always end with '/'.
+
+    Args:
+        url: URL to normalize
+
+    Returns:
+        URL with trailing slash (e.g., '/public/' instead of '/public')
+    """
+
+    return url.rstrip("/") + "/"
