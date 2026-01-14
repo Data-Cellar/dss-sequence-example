@@ -1,4 +1,4 @@
-name: dashboard-mediator
+name: mediator
 
 services:
     app:
