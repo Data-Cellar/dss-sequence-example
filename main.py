@@ -13,9 +13,6 @@ app = FastAPI(
     title="Dashboard Mediator API",
     description="Dashboard Mediator that orchestrates connector negotiation and transfer via connectors",
     version="1.0.0",
-    root_path="/mediator",
-    docs_url="/docs",
-    openapi_url="/api/openapi.json",
 )
 
 
