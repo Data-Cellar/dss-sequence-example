@@ -1,5 +1,6 @@
 services:
     mediator:
+        container_name: mediator
         build:
             context: .
             dockerfile: Dockerfile
