@@ -8,11 +8,14 @@ This module initializes the FastAPI application, sets up the API routes,
 and defines the main entry point for the service.
 """
 
+
 app = FastAPI(
     title="Dashboard Mediator API",
     description="Dashboard Mediator that orchestrates connector negotiation and transfer via connectors",
     version="1.0.0",
-    root_path="/mediator"
+    root_path="/mediator",
+    docs_url="/docs",
+    openapi_url="/api/openapi.json",
 )
 
 
