@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Depends
 from pydantic import BaseModel, HttpUrl, field_validator, Field
 from services.edcpy_service import run_edcpy_negotiation_and_transfer
 import traceback
 from typing import Dict, Union
+from auth import keycloak_auth
+
 
 QueryValue = Union[str, int, float, bool]
 
@@ -53,7 +55,9 @@ class NegotiationRequest(BaseModel):
 
 
 @router.post("/connector/initiate")
-async def initiate_negotiation_and_transfer(request: NegotiationRequest = Body(...)):
+async def initiate_negotiation_and_transfer(
+    request: NegotiationRequest = Body(...),
+    user: dict = Depends(keycloak_auth)):
     """
     Initiate the negotiation and transfer process for a specific asset.
 
