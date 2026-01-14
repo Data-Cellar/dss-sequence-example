@@ -1,7 +1,5 @@
-name: mediator
-
 services:
-    app:
+    mediator:
         build:
             context: .
             dockerfile: dockerfile

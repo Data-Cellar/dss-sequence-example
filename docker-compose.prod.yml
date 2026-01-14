@@ -1,7 +1,5 @@
-name: mediator
-
 services:
-    app:
+    mediator:
         build:
             context: .
             dockerfile: Dockerfile
@@ -18,3 +16,10 @@ services:
         restart: on-failure
         env_file:
             - .env
+        networks:
+            - datacellar
+
+networks:
+    datacellar:
+        external: true
+        name: datacellar
