@@ -2288,7 +2288,22 @@ idna = ">=2.0"
 multidict = ">=4.0"
 propcache = ">=0.2.1"
 
+[[package]]
+name = "zipstream-ng"
+version = "1.9.0"
+description = "A modern and easy to use streamable zip file generator"
+optional = false
+python-versions = ">=3.5.0"
+groups = ["main"]
+files = [
+    {file = "zipstream_ng-1.9.0-py3-none-any.whl", hash = "sha256:31dc2cf617abdbf28d44f2e08c0d14c8eee2ea0ec26507a7e4d5d5f97c564b7a"},
+    {file = "zipstream_ng-1.9.0.tar.gz", hash = "sha256:a0d94030822d137efbf80dfdc680603c42f804696f41147bb3db895df667daea"},
+]
+
+[package.extras]
+tests = ["pytest", "pytest-cov"]
+
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4.0"
-content-hash = "f38bfb084d3d105f24f719bfc717122a4bbdbcf49cfb6cea309868c7a174edd4"
+content-hash = "b359138c5a2926bb106071354da7d06a1b48cd51153a9fcfe3ed2d0a96b5cecb"

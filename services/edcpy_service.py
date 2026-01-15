@@ -1,10 +1,10 @@
 import asyncio
 import httpx
-import pprint
 import json
+import zipstream
 
 from edcpy.edc_api import ConnectorController
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi import HTTPException
 from config import DASHBOARD_API_KEY, DASHBOARD_CONSUMER_BACKEND_URL
 from edc_connector.edc_config import create_edc_config
@@ -27,43 +27,54 @@ async def run_edcpy_negotiation_and_transfer(
     provider_connector_id: str,
     provider_host: str,
     query_params: dict
+) -> JSONResponse:
+    request_args = await negotiate_and_get_request_args(
+        asset_id,
+        provider_connector_protocol_url,
+        provider_connector_id,
+        provider_host
+    )
+
+    return await execute_json_request(
+        request_args,
+        query_params
+    )
+
+async def run_edcpy_negotiation_and_transfer_streaming(
+    asset_id: str,
+    provider_connector_protocol_url: str,
+    provider_connector_id: str,
+    provider_host: str,
+    query_params: dict
+) -> StreamingResponse:
+    request_args = await negotiate_and_get_request_args(
+        asset_id,
+        provider_connector_protocol_url,
+        provider_connector_id,
+        provider_host,
+    )
+
+    return await execute_streaming_request(
+        request_args,
+        query_params,
+        filename=f"{asset_id}.json"
+    )
+
+async def negotiate_and_get_request_args(
+        asset_id: str,
+        provider_connector_protocol_url: str,
+        provider_connector_id: str,
+        provider_host: str
 ) -> dict:
-    """
-    Use edcpy to handle contract negotiation and transfer process.
-
-    This function initializes the EDC controller, starts an SSE listener for credentials,
-    negotiates a contract for the specified asset, and initiates the data transfer.
-    It waits for the access token and endpoint URL to be delivered via SSE.
-
-    Args:
-        asset_id (str): The unique identifier of the asset to transfer.
-        provider_connector_protocol_url (str): The protocol URL of the provider's EDC connector.
-        provider_connector_id (str): The identifier of the provider's connector.
-        provider_host (str): The hostname of the provider.
-
-    Returns:
-        dict: A dictionary containing the access credentials:
-            - bearer_token (str): The JWT access token.
-            - endpoint_url (str): The URL to access the data.
-
-    Raises:
-        Exception: If the negotiation fails, transfer fails, or credentials are invalid/missing.
-    """
-    try:
-        # Initialize EDC controller with custom config
         edc_config = create_edc_config()
         controller = ConnectorController(config=edc_config)
 
-        # Start SSE listener for credentials
         sse_receiver = SSEPullCredentialsReceiver(
             DASHBOARD_CONSUMER_BACKEND_URL, DASHBOARD_API_KEY
         )
 
-        # Step 1: Start listening in the background
         listen_task = asyncio.create_task(sse_receiver.start_listening(provider_host))
-
         try:
-            # Step 2: Negotiate contract
             logger.info(f"Starting negotiation for asset {asset_id}")
 
             transfer_details = await controller.run_negotiation_flow(
@@ -72,26 +83,17 @@ async def run_edcpy_negotiation_and_transfer(
                 asset_query=asset_id,
             )
 
-            # Step 3: Start transfer
             logger.info("Starting transfer process")
             transfer_id = await controller.run_transfer_flow(
                 transfer_details=transfer_details, is_provider_push=False
             )
 
             logger.info(f"Transfer process initiated: {transfer_id}")
-
-            # Step 4: Get credentials
             logger.info("Awaiting transfer credentials via SSE")
             pull_message = await sse_receiver.get_credentials(transfer_id)
             
-            # Step 5: Execute authenticated request
-            return await execute_authenticated_request(pull_message["request_args"], query_params)
-
-
-            # return {"bearer_token": bearer_token, "endpoint_url": endpoint_url}
-
+            return pull_message["request_args"]
         finally:
-            # Stop SSE listener
             await sse_receiver.stop_listening()
             listen_task.cancel()
 
@@ -100,12 +102,11 @@ async def run_edcpy_negotiation_and_transfer(
             except asyncio.CancelledError:
                 pass
 
-    except Exception as e:
-        logger.error(f"EDC negotiation and transfer failed: {e}")
-        raise
-
-async def execute_authenticated_request(request_args: dict, query_params: dict) -> JSONResponse:
-    logger.info("Step 5: Executing authenticated data request")
+async def execute_json_request(
+        request_args: dict,
+        query_params: dict
+) -> JSONResponse:
+    logger.info("Executing authenticated data request")
 
     request_args = {**request_args}
     request_args["url"] = ensure_url_ends_with_slash(request_args["url"])
@@ -123,10 +124,8 @@ async def execute_authenticated_request(request_args: dict, query_params: dict) 
 
         try:
             payload = response.json()
-
             while isinstance(payload, str):
                 payload = json.loads(payload)
-
         except Exception as exc:
             logger.error("Invalid JSON from provider: %s", response.text[:500])
             raise HTTPException(
@@ -134,9 +133,48 @@ async def execute_authenticated_request(request_args: dict, query_params: dict) 
                 detail="Provider returned invalid JSON"
             ) from exc
 
-        logger.info(
-            "Data transfer completed successfully ✅\n--- Response preview ---\n%s\n--- End of preview ---",
-            pprint.pformat(payload, width=100, compact=True)[:1024],
-        )
-
         return JSONResponse(content=payload)
+    
+async def execute_streaming_request(
+    request_args: dict,
+    query_params: dict,
+    *,
+    filename: str,
+) -> StreamingResponse:
+    logger.info("Executing authenticated ZIP STREAMING request")
+
+    request_args = {**request_args}
+    request_args["url"] = ensure_url_ends_with_slash(request_args["url"])
+    request_args["params"] = query_params
+
+    timeout = httpx.Timeout(
+        connect=10.0,
+        read=None,
+        write=10.0,
+        pool=10.0,
+    )
+
+    z = zipstream.ZipStream()
+
+    def provider_stream():
+        """
+        Synchronous byte generator required by zipstream-ng
+        """
+        with httpx.Client(timeout=timeout) as client:
+            with client.stream(**request_args) as response:
+                response.raise_for_status()
+                for chunk in response.iter_bytes():
+                    if chunk:
+                        yield chunk
+
+    z.add(provider_stream(), arcname=filename)
+
+    zip_name = filename.rsplit(".", 1)[0] + ".zip"
+
+    return StreamingResponse(
+        z,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{zip_name}"'
+        },
+    )

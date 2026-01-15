@@ -1,33 +1,19 @@
 from fastapi import APIRouter, Body, HTTPException, Depends
 from pydantic import BaseModel, HttpUrl, field_validator, Field
-from services.edcpy_service import run_edcpy_negotiation_and_transfer
-import traceback
 from typing import Dict, Union
-from auth import keycloak_auth
 
+from auth import keycloak_auth
+from services.edcpy_service import (
+    run_edcpy_negotiation_and_transfer,
+    run_edcpy_negotiation_and_transfer_streaming,
+)
 
 QueryValue = Union[str, int, float, bool]
 
-"""
-API routes for the Dashboard Mediator.
-
-This module defines the endpoints for initiating contract negotiations and data transfers
-via the Eclipse Dataspace Connector (EDC).
-"""
-
 router = APIRouter()
 
+
 class NegotiationRequest(BaseModel):
-    """
-    Request model for initiating a negotiation and transfer process.
-
-    Attributes:
-        asset_id (str): The ID of the asset to be transferred.
-        provider_connector_protocol_url (HttpUrl): The protocol URL of the provider connector.
-        provider_connector_id (str): The ID of the provider connector.
-        provider_host (str): The host address of the provider.
-    """
-
     asset_id: str
     provider_connector_protocol_url: HttpUrl
     provider_connector_id: str
@@ -37,53 +23,49 @@ class NegotiationRequest(BaseModel):
     @field_validator("asset_id", "provider_connector_id", "provider_host")
     @classmethod
     def validate_non_empty_string(cls, v: str) -> str:
-        """
-        Validate that string fields are not empty or whitespace only.
-
-        Args:
-            v (str): The string value to validate.
-
-        Returns:
-            str: The validated and stripped string.
-
-        Raises:
-            ValueError: If the string is empty or contains only whitespace.
-        """
         if not v or not v.strip():
             raise ValueError("Field cannot be empty")
         return v.strip()
-
-
-@router.post("/connector/initiate")
+    
+@router.post("/datasets/transfer")
 async def initiate_negotiation_and_transfer(
     request: NegotiationRequest = Body(...),
-    user: dict = Depends(keycloak_auth)):
-    """
-    Initiate the negotiation and transfer process for a specific asset.
-
-    This endpoint triggers the negotiation flow with a provider connector for a requested asset.
-    It orchestrates the EDC communication and retrieves the access credentials.
-
-    Args:
-        request (NegotiationRequest): The request body containing negotiation details.
-
-    Returns:
-        dict: A dictionary containing the transfer result, including the bearer token and endpoint URL.
-
-    Raises:
-        HTTPException: If the negotiation or transfer process fails (status code 500).
-    """
+    user: dict = Depends(keycloak_auth),
+):
     try:
         return await run_edcpy_negotiation_and_transfer(
-            request.asset_id,
-            str(request.provider_connector_protocol_url),
-            request.provider_connector_id,
-            request.provider_host,
-            request.query_params
+            asset_id=request.asset_id,
+            provider_connector_protocol_url=str(
+                request.provider_connector_protocol_url
+            ),
+            provider_connector_id=request.provider_connector_id,
+            provider_host=request.provider_host,
+            query_params=request.query_params,
         )
-    except Exception as e:
-        print("FULL ERROR TRACEBACK:")
-        print(traceback.format_exc())
+    except Exception as exc:
         raise HTTPException(
-            status_code=500, detail=f"Negotiation and transfer failed: {str(e)}"
+            status_code=500,
+            detail=f"Negotiation and transfer failed: {exc}",
         )
+
+@router.post("/datasets/transfer/stream")
+async def initiate_negotiation_and_transfer_stream(
+    request: NegotiationRequest = Body(...),
+    user: dict = Depends(keycloak_auth),
+):
+    try:
+        return await run_edcpy_negotiation_and_transfer_streaming(
+            asset_id=request.asset_id,
+            provider_connector_protocol_url=str(
+                request.provider_connector_protocol_url
+            ),
+            provider_connector_id=request.provider_connector_id,
+            provider_host=request.provider_host,
+            query_params=request.query_params,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Streaming negotiation and transfer failed: {exc}",
+        )
+
