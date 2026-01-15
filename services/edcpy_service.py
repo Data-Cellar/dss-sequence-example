@@ -1,9 +1,11 @@
 import asyncio
 import httpx
 import pprint
+import json
 
 from edcpy.edc_api import ConnectorController
-
+from fastapi.responses import JSONResponse
+from fastapi import HTTPException
 from config import DASHBOARD_API_KEY, DASHBOARD_CONSUMER_BACKEND_URL
 from edc_connector.edc_config import create_edc_config
 from edc_connector.sse_receiver import SSEPullCredentialsReceiver
@@ -102,25 +104,13 @@ async def run_edcpy_negotiation_and_transfer(
         logger.error(f"EDC negotiation and transfer failed: {e}")
         raise
 
-async def execute_authenticated_request(request_args: dict, query_params: dict) -> str:
-    """
-    Execute an authenticated data request using provided credentials.
-
-    Args:
-        request_args: Dictionary containing HTTP request arguments (url, method, headers, etc.)
-
-    Returns:
-        Response text from the authenticated request
-    """
-
+async def execute_authenticated_request(request_args: dict, query_params: dict) -> JSONResponse:
     logger.info("Step 5: Executing authenticated data request")
 
-    # IMPORTANT: Normalize URL to include trailing slash (required by some endpoints)
     request_args = {**request_args}
     request_args["url"] = ensure_url_ends_with_slash(request_args["url"])
     request_args["params"] = query_params
 
-    # Configure timeout for data transfer requests (can be long-running)
     timeout = httpx.Timeout(
         connect=10.0,
         read=120.0,
@@ -130,13 +120,23 @@ async def execute_authenticated_request(request_args: dict, query_params: dict) 
 
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.request(**request_args)
-        data = response.text
+
+        try:
+            payload = response.json()
+
+            while isinstance(payload, str):
+                payload = json.loads(payload)
+
+        except Exception as exc:
+            logger.error("Invalid JSON from provider: %s", response.text[:500])
+            raise HTTPException(
+                status_code=502,
+                detail="Provider returned invalid JSON"
+            ) from exc
 
         logger.info(
             "Data transfer completed successfully ✅\n--- Response preview ---\n%s\n--- End of preview ---",
-            pprint.pformat(data, width=100, compact=True)[
-                :1024
-            ],
+            pprint.pformat(payload, width=100, compact=True)[:1024],
         )
 
-        return data
+        return JSONResponse(content=payload)
