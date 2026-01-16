@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Body, HTTPException, Depends
 from pydantic import BaseModel, HttpUrl, field_validator, Field
-from typing import Dict, Union
+from typing import Dict, Union, Optional
 
 from auth import keycloak_auth
 from services.edcpy_service import (
@@ -19,6 +19,7 @@ class NegotiationRequest(BaseModel):
     provider_connector_id: str
     provider_host: str
     query_params: Dict[str, QueryValue] = Field(default_factory=dict)
+    catalog_limit: Optional[int] = Field(default=None, ge=1)
 
     @field_validator("asset_id", "provider_connector_id", "provider_host")
     @classmethod
@@ -41,6 +42,7 @@ async def initiate_negotiation_and_transfer(
             provider_connector_id=request.provider_connector_id,
             provider_host=request.provider_host,
             query_params=request.query_params,
+            catalog_limit=request.catalog_limit,
         )
     except Exception as exc:
         raise HTTPException(
@@ -62,10 +64,10 @@ async def initiate_negotiation_and_transfer_stream(
             provider_connector_id=request.provider_connector_id,
             provider_host=request.provider_host,
             query_params=request.query_params,
+            catalog_limit=request.catalog_limit,
         )
     except Exception as exc:
         raise HTTPException(
             status_code=500,
             detail=f"Streaming negotiation and transfer failed: {exc}",
         )
-

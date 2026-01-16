@@ -106,7 +106,9 @@ The service will be available at `http://localhost:8002`.
   "asset_id": "string",
   "provider_connector_protocol_url": "http://provider-host:port/protocol",
   "provider_connector_id": "string",
-  "provider_host": "string"
+  "provider_host": "string",
+  "query_params": {},
+  "catalog_limit": 200
 }
 ```
 

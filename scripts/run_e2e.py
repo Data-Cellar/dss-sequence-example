@@ -38,6 +38,12 @@ async def main():
     parser.add_argument(
         "--provider-host", default=config.DASHBOARD_CONNECTOR_HOST, help="Provider Host"
     )
+    parser.add_argument(
+        "--catalog-limit",
+        type=int,
+        default=None,
+        help="Optional catalog limit override for providers with pagination",
+    )
 
     args = parser.parse_args()
 
@@ -49,6 +55,7 @@ async def main():
             provider_connector_protocol_url=args.provider_url,
             provider_connector_id=args.provider_id,
             provider_host=args.provider_host,
+            catalog_limit=args.catalog_limit,
         )
 
         logger.info("Test completed successfully!")

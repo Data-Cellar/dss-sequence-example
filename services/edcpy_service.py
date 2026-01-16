@@ -26,18 +26,20 @@ async def run_edcpy_negotiation_and_transfer(
     provider_connector_protocol_url: str,
     provider_connector_id: str,
     provider_host: str,
-    query_params: dict
+    query_params: dict | None = None,
+    catalog_limit: int | None = None,
 ) -> JSONResponse:
     request_args = await negotiate_and_get_request_args(
         asset_id,
         provider_connector_protocol_url,
         provider_connector_id,
-        provider_host
+        provider_host,
+        catalog_limit=catalog_limit,
     )
 
     return await execute_json_request(
         request_args,
-        query_params
+        query_params or {},
     )
 
 async def run_edcpy_negotiation_and_transfer_streaming(
@@ -45,18 +47,20 @@ async def run_edcpy_negotiation_and_transfer_streaming(
     provider_connector_protocol_url: str,
     provider_connector_id: str,
     provider_host: str,
-    query_params: dict
+    query_params: dict | None = None,
+    catalog_limit: int | None = None,
 ) -> StreamingResponse:
     request_args = await negotiate_and_get_request_args(
         asset_id,
         provider_connector_protocol_url,
         provider_connector_id,
         provider_host,
+        catalog_limit=catalog_limit,
     )
 
     return await execute_streaming_request(
         request_args,
-        query_params,
+        query_params or {},
         filename=f"{asset_id}.json"
     )
 
@@ -64,7 +68,8 @@ async def negotiate_and_get_request_args(
         asset_id: str,
         provider_connector_protocol_url: str,
         provider_connector_id: str,
-        provider_host: str
+        provider_host: str,
+        catalog_limit: int | None = None,
 ) -> dict:
         edc_config = create_edc_config()
         controller = ConnectorController(config=edc_config)
@@ -76,11 +81,16 @@ async def negotiate_and_get_request_args(
         listen_task = asyncio.create_task(sse_receiver.start_listening(provider_host))
         try:
             logger.info(f"Starting negotiation for asset {asset_id}")
+            negotiation_kwargs = {
+                "counter_party_protocol_url": provider_connector_protocol_url,
+                "counter_party_connector_id": provider_connector_id,
+                "asset_query": asset_id,
+            }
+            if catalog_limit is not None:
+                negotiation_kwargs["catalog_limit"] = catalog_limit
 
             transfer_details = await controller.run_negotiation_flow(
-                counter_party_protocol_url=provider_connector_protocol_url,
-                counter_party_connector_id=provider_connector_id,
-                asset_query=asset_id,
+                **negotiation_kwargs,
             )
 
             logger.info("Starting transfer process")

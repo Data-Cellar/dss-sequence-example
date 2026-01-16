@@ -482,28 +482,28 @@ gmpy2 = ["gmpy2"]
 
 [[package]]
 name = "edcpy"
-version = "0.10.1"
+version = "0.11.0"
 description = "Package that provides a series of utilities to facilitate interaction with the Management and Control APIs of an EDC connector"
 optional = false
 python-versions = "<4.0,>=3.8"
 groups = ["main"]
 files = [
-    {file = "edcpy-0.10.1-py3-none-any.whl", hash = "sha256:2c86588e934fd23ba19ce67494e5a50a9b38ed89a3971ef9a17b4794d8ca078e"},
-    {file = "edcpy-0.10.1.tar.gz", hash = "sha256:b62e47d81a422d7d21dd933ca3d94ff9592e6212b1e6ad45657816bcd5405c24"},
+    {file = "edcpy-0.11.0-py3-none-any.whl", hash = "sha256:90e3054333c9c2bba1a85fe01104eb66ae9ab708dadba8e2acf514be9175272b"},
+    {file = "edcpy-0.11.0.tar.gz", hash = "sha256:a2280ce7b65dc0ccab2cab0f7c4eab3e5102bd1d857e346ffac9c6e9f6278911"},
 ]
 
 [package.dependencies]
-coloredlogs = ">=15.0.1,<16.0.0"
-cryptography = ">=41.0.1,<42.0.0"
-deepmerge = ">=1.1.0,<2.0.0"
-environ-config = ">=23.2.0,<24.0.0"
-fastapi = {version = ">=0.109.0,<0.110.0", extras = ["all"]}
-faststream = {version = ">=0.5.34,<0.6.0", extras = ["rabbit"]}
-httpx = ">=0.27.0,<0.28.0"
-pydantic = ">=2.10.5,<3.0.0"
-pyjwt = {version = ">=2.7.0,<3.0.0", extras = ["crypto"]}
-python-slugify = ">=8.0.1,<9.0.0"
-requests = ">=2.31.0,<3.0.0"
+coloredlogs = ">=15.0.1"
+cryptography = ">=41.0.1"
+deepmerge = ">=1.1.0"
+environ-config = ">=23.2.0"
+fastapi = {version = ">=0.109.0", extras = ["all"]}
+faststream = {version = ">=0.5.34", extras = ["rabbit"]}
+httpx = ">=0.27.0"
+pydantic = ">=2.10.0"
+pyjwt = {version = ">=2.7.0", extras = ["crypto"]}
+python-slugify = ">=8.0.1"
+requests = ">=2.31.0"
 
 [[package]]
 name = "email-validator"
@@ -2306,4 +2306,4 @@ tests = ["pytest", "pytest-cov"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4.0"
-content-hash = "b359138c5a2926bb106071354da7d06a1b48cd51153a9fcfe3ed2d0a96b5cecb"
+content-hash = "a8638d19cf21e11c0b7d62e64575039c5f512dbc7aca0375033b7b6c7023dd6f"
