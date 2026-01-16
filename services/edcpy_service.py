@@ -26,7 +26,7 @@ async def run_edcpy_negotiation_and_transfer(
     provider_connector_protocol_url: str,
     provider_connector_id: str,
     provider_host: str,
-    query_params: dict | None = None,
+    query_params: dict,
     catalog_limit: int | None = None,
 ) -> JSONResponse:
     request_args = await negotiate_and_get_request_args(
@@ -39,7 +39,7 @@ async def run_edcpy_negotiation_and_transfer(
 
     return await execute_json_request(
         request_args,
-        query_params or {},
+        query_params,
     )
 
 async def run_edcpy_negotiation_and_transfer_streaming(
@@ -47,7 +47,7 @@ async def run_edcpy_negotiation_and_transfer_streaming(
     provider_connector_protocol_url: str,
     provider_connector_id: str,
     provider_host: str,
-    query_params: dict | None = None,
+    query_params: dict,
     catalog_limit: int | None = None,
 ) -> StreamingResponse:
     request_args = await negotiate_and_get_request_args(
@@ -60,7 +60,7 @@ async def run_edcpy_negotiation_and_transfer_streaming(
 
     return await execute_streaming_request(
         request_args,
-        query_params or {},
+        query_params,
         filename=f"{asset_id}.json"
     )
 

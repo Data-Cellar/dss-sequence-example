@@ -18,8 +18,8 @@ class NegotiationRequest(BaseModel):
     provider_connector_protocol_url: HttpUrl
     provider_connector_id: str
     provider_host: str
-    query_params: Dict[str, QueryValue] = Field(default_factory=dict)
-    catalog_limit: Optional[int] = Field(default=None, ge=1)
+    query_params: Optional[Dict[str, QueryValue]] = None
+    catalog_limit: Optional[int] = Field(default=10000, ge=1)
 
     @field_validator("asset_id", "provider_connector_id", "provider_host")
     @classmethod
@@ -41,7 +41,7 @@ async def initiate_negotiation_and_transfer(
             ),
             provider_connector_id=request.provider_connector_id,
             provider_host=request.provider_host,
-            query_params=request.query_params,
+            query_params=request.query_params or {},
             catalog_limit=request.catalog_limit,
         )
     except Exception as exc:
@@ -63,7 +63,7 @@ async def initiate_negotiation_and_transfer_stream(
             ),
             provider_connector_id=request.provider_connector_id,
             provider_host=request.provider_host,
-            query_params=request.query_params,
+            query_params=request.query_params or {},
             catalog_limit=request.catalog_limit,
         )
     except Exception as exc:
