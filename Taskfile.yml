@@ -42,3 +42,8 @@ tasks:
     deps: [install, docker-up-dev]
     cmds:
       - poetry run python scripts/run_e2e.py {{.CLI_ARGS}}
+
+  run-tool-example:
+    desc: Run the multipart tool example demonstrating calls that use POST methods with multipart/form-data payloads
+    cmds:
+      - poetry run python examples/multipart-tool/run_example.py {{.CLI_ARGS}}
