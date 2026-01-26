@@ -63,6 +63,29 @@ async def run_edcpy_negotiation_and_transfer_streaming(
         request_args, query_params, filename=f"{asset_id}.json"
     )
 
+async def run_edcpy_negotiation_and_transfer_multipart(
+    asset_id: str,
+    provider_connector_protocol_url: str,
+    provider_connector_id: str,
+    provider_host: str,
+    file_path: str,
+    query_params: dict,
+    catalog_limit: int | None = None,
+) -> JSONResponse:
+    request_args = await negotiate_and_get_request_args(
+        asset_id,
+        provider_connector_protocol_url,
+        provider_connector_id,
+        provider_host,
+        catalog_limit=catalog_limit,
+    )
+
+    return await execute_multipart_request(
+    request_args=request_args,
+    file_path=file_path,
+    query_params=query_params,
+)
+
 
 async def negotiate_and_get_request_args(
     asset_id: str,
@@ -190,7 +213,6 @@ async def execute_multipart_request(
     request_args: dict,
     file_path: str,
     file_field_name: str = "file",
-    additional_fields: dict | None = None,
     query_params: dict | None = None,
 ) -> dict:
     """
@@ -231,20 +253,20 @@ async def execute_multipart_request(
     )
 
     async with httpx.AsyncClient(timeout=timeout) as client:
-        # Open file for multipart upload
         with open(file_path, "rb") as f:
-            files = {file_field_name: f}
+            files = {
+                file_field_name: (
+                    "payload.json",
+                    f,
+                    "application/json",
+                )
+            }
 
-            # Additional form fields if provided
-            data = additional_fields if additional_fields else None
-
-            # POST request (explicitly, not from request_args["method"])
             response = await client.post(
                 url,
                 headers=headers,
                 params=merged_params,
-                files=files,
-                data=data,
+                files=files
             )
 
         response.raise_for_status()
