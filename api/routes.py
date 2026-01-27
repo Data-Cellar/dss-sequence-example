@@ -115,7 +115,6 @@ async def initiate_multipart_file_transfer(
             provider_connector_id=request.provider_connector_id,
             provider_host=request.provider_host,
             file_path=tmp_path,
-            query_params=request.query_params or {},
             catalog_limit=request.catalog_limit,
         )
     except HTTPException:

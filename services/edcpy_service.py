@@ -69,7 +69,6 @@ async def run_edcpy_negotiation_and_transfer_multipart(
     provider_connector_id: str,
     provider_host: str,
     file_path: str,
-    query_params: dict,
     catalog_limit: int | None = None,
 ) -> JSONResponse:
     request_args = await negotiate_and_get_request_args(
@@ -82,8 +81,7 @@ async def run_edcpy_negotiation_and_transfer_multipart(
 
     return await execute_multipart_request(
     request_args=request_args,
-    file_path=file_path,
-    query_params=query_params,
+    file_path=file_path
 )
 
 
@@ -211,9 +209,7 @@ async def execute_streaming_request(
 
 async def execute_multipart_request(
     request_args: dict,
-    file_path: str,
-    file_field_name: str = "file",
-    query_params: dict | None = None,
+    file_path: str
 ) -> dict:
     """
     Execute a multipart/form-data POST request using EDC-negotiated credentials.
@@ -239,11 +235,10 @@ async def execute_multipart_request(
 
     # Merge query params: request_args["params"] + additional query_params
     merged_params = {**request_args.get("params", {})}
-    if query_params:
-        merged_params.update(query_params)
 
     # Preserve auth headers from EDC negotiation
     headers = {**request_args.get("headers", {})}
+    headers["Accept"] = "application/json"
 
     timeout = httpx.Timeout(
         connect=10.0,
@@ -255,7 +250,7 @@ async def execute_multipart_request(
     async with httpx.AsyncClient(timeout=timeout) as client:
         with open(file_path, "rb") as f:
             files = {
-                file_field_name: (
+                "input_file": (
                     "payload.json",
                     f,
                     "application/json",
